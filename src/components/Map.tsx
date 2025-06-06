@@ -99,7 +99,7 @@ export default function React19ProfessionalMap() {
     )
   }
 
-  const states = feature(usTopology, usTopology.objects.states)
+  const states = feature(usTopology, usTopology.objects.states) as any
   const projection = d3.geoAlbersUsa().scale(1300).translate([487.5, 305])
   const pathGenerator = d3.geoPath().projection(projection)
 
@@ -167,7 +167,7 @@ export default function React19ProfessionalMap() {
           >
             <rect width="975" height="610" fill="#111827" />
             
-            {states.features.map((state: any) => {
+            {states.features?.map((state: any) => {
               const stateName = state.properties.NAME
               const stateInfo = stateData[stateName as keyof typeof stateData]
               const billCount = stateInfo?.bills || 0

@@ -1,0 +1,7 @@
+FROM postgres:15
+
+ENV POSTGRES_DB=policybyte
+ENV POSTGRES_USER=postgres
+ENV POSTGRES_PASSWORD=password123
+
+EXPOSE 5432
