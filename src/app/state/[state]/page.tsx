@@ -1,33 +1,35 @@
 import Link from 'next/link'
 import BillCard from '@/components/BillCard'
+import { getBillsByState } from '@/lib/db'
 
 interface StatePageProps {
-  params: {
+  params: Promise<{
     state: string
-  }
+  }>
 }
 
-// Mock data for now
-const mockBills = [
-  {
-    id: '1',
-    title: 'Education Funding Reform Act',
-    summary: 'Increases funding for public schools by 15% and establishes new teacher retention programs.',
-    status: 'In Committee',
-    date: '2025-05-15',
-  },
-  {
-    id: '2',
-    title: 'Clean Energy Initiative',
-    summary: 'Provides tax incentives for renewable energy adoption and sets carbon reduction targets.',
-    status: 'Passed House',
-    date: '2025-05-10',
-  },
-]
+interface Bill {
+  id: string
+  title: string
+  status: string
+  lastActionDate: Date | null
+  createdAt: Date
+  summaries: Array<{
+    content: string
+  }>
+}
 
-export default function StatePage({ params }: StatePageProps) {
-  const stateCode = params.state.toUpperCase()
+export default async function StatePage({ params }: StatePageProps) {
+  const { state } = await params
+  const stateCode = state.toUpperCase()
   const stateName = getStateName(stateCode)
+
+  let bills: Bill[] = []
+  try {
+    bills = await getBillsByState(stateCode)
+  } catch (error) {
+    console.error('Error fetching bills:', error)
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
@@ -47,19 +49,28 @@ export default function StatePage({ params }: StatePageProps) {
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {mockBills.map((bill) => (
-            <BillCard key={bill.id} bill={bill} />
-          ))}
-        </div>
-
-        {mockBills.length === 0 && (
+        {bills.length > 0 ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {bills.map((bill) => (
+              <BillCard 
+                key={bill.id} 
+                bill={{
+                  id: bill.id,
+                  title: bill.title,
+                  summary: bill.summaries[0]?.content || 'No summary available',
+                  status: bill.status,
+                  date: bill.lastActionDate?.toISOString().split('T')[0] || bill.createdAt.toISOString().split('T')[0]
+                }} 
+              />
+            ))}
+          </div>
+        ) : (
           <div className="text-center py-12">
             <p className="text-slate-400 text-lg">
               No bills available for {stateName} yet.
             </p>
             <p className="text-slate-500 mt-2">
-              Check back soon as we add more states to our system.
+              Visit the admin panel to start collecting legislative data.
             </p>
           </div>
         )}
@@ -71,10 +82,22 @@ export default function StatePage({ params }: StatePageProps) {
 function getStateName(code: string): string {
   const states: Record<string, string> = {
     'CA': 'California',
-    'TX': 'Texas',
+    'TX': 'Texas', 
     'NY': 'New York',
     'FL': 'Florida',
-    // Add more as needed
+    'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas',
+    'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware',
+    'GA': 'Georgia', 'HI': 'Hawaii', 'ID': 'Idaho', 'IL': 'Illinois',
+    'IN': 'Indiana', 'IA': 'Iowa', 'KS': 'Kansas', 'KY': 'Kentucky',
+    'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland', 'MA': 'Massachusetts',
+    'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi', 'MO': 'Missouri',
+    'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada', 'NH': 'New Hampshire',
+    'NJ': 'New Jersey', 'NM': 'New Mexico', 'NC': 'North Carolina',
+    'ND': 'North Dakota', 'OH': 'Ohio', 'OK': 'Oklahoma', 'OR': 'Oregon',
+    'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
+    'SD': 'South Dakota', 'TN': 'Tennessee', 'UT': 'Utah', 'VT': 'Vermont',
+    'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia',
+    'WI': 'Wisconsin', 'WY': 'Wyoming', 'DC': 'District of Columbia'
   }
   return states[code] || code
 }
