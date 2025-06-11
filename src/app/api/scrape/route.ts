@@ -106,7 +106,15 @@ async function processStateData(jobId: string, stateCode: string) {
     console.log(`Starting data fetch for ${stateName}`)
     const result = await fetchStateData(stateCode)
     
+    console.log(`Fetch result:`, {
+      success: result.success,
+      billsCount: result.bills.length,
+      errors: result.errors,
+      queriesUsed: result.queriesUsed
+    })
+    
     if (!result.success) {
+      console.log('Fetch failed, updating job status')
       await updateScrapingJob(jobId, {
         status: 'FAILED',
         errors: result.errors,
@@ -126,8 +134,10 @@ async function processStateData(jobId: string, stateCode: string) {
     console.log(`Processing ${result.bills.length} bills for ${stateName}`)
     console.log(`API queries used: ${result.queriesUsed}`)
 
-    for (const billData of result.bills) {
+    for (const [index, billData] of result.bills.entries()) {
       try {
+        console.log(`Processing bill ${index + 1}/${result.bills.length}: ${billData.billNumber}`)
+        
         const bill = await createBill({
           title: billData.title,
           billNumber: billData.billNumber,
@@ -141,6 +151,7 @@ async function processStateData(jobId: string, stateCode: string) {
         })
 
         billsProcessed++
+        console.log(`Bill created successfully: ${billData.billNumber}`)
 
         if (billData.fullText && billData.fullText.length > 100) {
           try {
@@ -162,10 +173,13 @@ async function processStateData(jobId: string, stateCode: string) {
             })
 
             billsSummarized++
+            console.log(`Summary created for ${billData.billNumber}`)
           } catch (aiError) {
             console.error(`AI processing failed for ${billData.billNumber}:`, aiError)
             errors.push(`AI processing failed for ${billData.billNumber}`)
           }
+        } else {
+          console.log(`No text available for ${billData.billNumber}, skipping summary`)
         }
         
         await updateScrapingJob(jobId, {

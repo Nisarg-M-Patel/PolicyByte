@@ -50,8 +50,22 @@ interface BillText {
   bill_id: number
   date: string
   type: string
+  type_id: number
+  mime: string
+  mime_id: number
   url: string
-  text?: string
+  state_link?: string
+  text_size?: number
+  text_hash?: string
+  doc?: string  // Base64 encoded document
+  text?: string // Plain text (when available)
+  alt_bill_text?: string  // Alternative plain text
+  alt_mime?: string
+  alt_mime_id?: number
+  alt_state_link?: string
+  alt_text_size?: number
+  alt_text_hash?: string
+  alt_doc?: string  // Alternative base64 encoded document
 }
 
 interface SessionInfo {
@@ -186,7 +200,22 @@ export class LegiScanAPI {
     const cacheKey = this.getCacheKey('getMasterListRaw', { id: sessionId })
     
     const data = await this.rateLimitedRequest('getMasterListRaw', { id: sessionId })
-    const bills = data.masterlist || []
+    console.log('Raw master list response:', data) // Debug log
+    
+    // Handle different response formats from LegiScan
+    let bills: BillSearchResult[] = []
+    if (data.masterlist) {
+      if (Array.isArray(data.masterlist)) {
+        bills = data.masterlist
+      } else if (typeof data.masterlist === 'object') {
+        // Sometimes masterlist is an object with bill IDs as keys
+        bills = Object.values(data.masterlist).filter((item: any) => 
+          item && typeof item === 'object' && item.bill_id
+        ) as BillSearchResult[]
+      }
+    }
+    
+    console.log(`Parsed ${bills.length} bills from master list`)
     
     const cached = this.getCachedData(cacheKey)
     let hasChanges = true
@@ -232,6 +261,21 @@ export class LegiScanAPI {
     if (cached) return cached
 
     const data = await this.rateLimitedRequest('getBillText', { id: docId })
+    console.log(`getBillText response for doc ${docId}:`, {
+      hasText: !!data.text?.text,
+      textLength: data.text?.text?.length || 0,
+      hasDoc: !!data.text?.doc,
+      docLength: data.text?.doc?.length || 0,
+      hasAltDoc: !!data.text?.alt_doc,
+      altDocLength: data.text?.alt_doc?.length || 0,
+      hasAltBillText: !!data.text?.alt_bill_text,
+      altBillTextLength: data.text?.alt_bill_text?.length || 0,
+      mimeType: data.text?.mime,
+      altMimeType: data.text?.alt_mime,
+      url: data.text?.url,
+      stateLink: data.text?.state_link
+    })
+    
     const textData = data.text
     
     this.setCachedData(cacheKey, textData, undefined, 24 * 60)

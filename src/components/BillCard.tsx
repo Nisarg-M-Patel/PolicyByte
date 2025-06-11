@@ -1,3 +1,6 @@
+// src/components/BillCard.tsx
+import Link from 'next/link'
+
 interface Bill {
   id: string
   title: string
@@ -14,15 +17,15 @@ export default function BillCard({ bill }: BillCardProps) {
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case 'passed':
-      case 'passed house':
-      case 'passed senate':
         return 'bg-green-500'
-      case 'in committee':
-        return 'bg-yellow-500'
-      case 'introduced':
+      case 'engrossed':
         return 'bg-blue-500'
+      case 'introduced':
+        return 'bg-blue-400'
       case 'failed':
         return 'bg-red-500'
+      case 'vetoed':
+        return 'bg-red-600'
       default:
         return 'bg-slate-500'
     }
@@ -49,9 +52,12 @@ export default function BillCard({ bill }: BillCardProps) {
       
       <div className="flex items-center justify-between text-xs text-slate-400">
         <span>{new Date(bill.date).toLocaleDateString()}</span>
-        <button className="text-blue-400 hover:text-blue-300 font-medium">
+        <Link 
+          href={`/bill/${bill.id}`}
+          className="text-blue-400 hover:text-blue-300 font-medium"
+        >
           Read More →
-        </button>
+        </Link>
       </div>
     </div>
   )

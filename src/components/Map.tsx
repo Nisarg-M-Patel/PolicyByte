@@ -101,8 +101,11 @@ export default function Map() {
   }
 
   const handleStateClick = (stateName: string) => {
+    console.log('State clicked:', stateName) // Debug log
     const state = stateData[stateName]
+    console.log('State data:', state) // Debug log
     if (state) {
+      console.log('Navigating to:', `/state/${state.abbrev.toLowerCase()}`) // Debug log
       router.push(`/state/${state.abbrev.toLowerCase()}`)
     }
   }
@@ -162,7 +165,8 @@ export default function Map() {
             <rect width="975" height="610" fill="#111827" />
             
             {states.features?.map((state: any) => {
-              const stateName = state.properties.NAME
+              const stateName = state.properties.NAME || state.properties.name
+              console.log('State properties:', state.properties) // Debug log
               const stateInfo = stateData[stateName]
               const billCount = stateInfo?.bills || 0
               const pathData = pathGenerator(state)
@@ -180,11 +184,17 @@ export default function Map() {
                     strokeWidth="0.5"
                     className="cursor-pointer transition-all duration-300 hover:stroke-white hover:stroke-2"
                     style={{
-                      filter: hoveredState === stateName ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.4))' : 'none'
+                      filter: hoveredState === stateName ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.4))' : 'none',
+                      pointerEvents: 'all'
                     }}
                     onMouseEnter={() => setHoveredState(stateName)}
                     onMouseLeave={() => setHoveredState(null)}
-                    onClick={() => handleStateClick(stateName)}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      console.log('Raw state object:', state) // Debug log
+                      handleStateClick(stateName)
+                    }}
                   />
                   {stateInfo && centroid && billCount > 0 && (
                     <text
