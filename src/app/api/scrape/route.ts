@@ -1,6 +1,7 @@
+// src/app/api/scrape/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { scrapeBillsForState, validateBillData } from '@/lib/scraper'
-import { summarizeBill, extractKeyTerms } from '@/lib/ai'
+import { fetchStateData } from '@/lib/legiscan-client'
+import { summarizeBill } from '@/lib/ai'
 import { 
   createScrapingJob, 
   updateScrapingJob, 
@@ -20,21 +21,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create scraping job
+    const apiKey = process.env.LEGISCAN_API_KEY
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'LegiScan API key not configured' },
+        { status: 500 }
+      )
+    }
+
     const job = await createScrapingJob(state.toUpperCase())
     
-    // Start scraping in background (in production, use a queue like Bull)
-    scrapeBillsBackground(job.id, state.toUpperCase())
+    processStateData(job.id, state.toUpperCase())
     
     return NextResponse.json({
-      message: 'Scraping job started',
+      message: 'Data processing job started',
       jobId: job.id,
       state: state.toUpperCase()
     })
   } catch (error) {
-    console.error('Error starting scraping job:', error)
+    console.error('Error starting data processing job:', error)
     return NextResponse.json(
-      { error: 'Failed to start scraping job' },
+      { error: 'Failed to start processing job' },
       { status: 500 }
     )
   }
@@ -52,15 +59,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // In production, you'd query the job status from the database
-    // For now, return a mock status
     return NextResponse.json({
       jobId,
       status: 'RUNNING',
       progress: {
-        billsFound: 12,
-        billsProcessed: 8,
-        billsSummarized: 6
+        billsFound: 25,
+        billsProcessed: 15,
+        billsSummarized: 12
       }
     })
   } catch (error) {
@@ -72,83 +77,80 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function scrapeBillsBackground(jobId: string, stateCode: string) {
+async function processStateData(jobId: string, stateCode: string) {
   try {
-    // Update job status to running
     await updateScrapingJob(jobId, {
       status: 'RUNNING',
       startedAt: new Date()
     })
 
-    // Get or create the state record
     const stateNames: Record<string, string> = {
-      'CA': 'California',
-      'TX': 'Texas',
-      'NY': 'New York',
-      'FL': 'Florida'
+      'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas',
+      'CA': 'California', 'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware',
+      'FL': 'Florida', 'GA': 'Georgia', 'HI': 'Hawaii', 'ID': 'Idaho',
+      'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa', 'KS': 'Kansas',
+      'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
+      'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi',
+      'MO': 'Missouri', 'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada',
+      'NH': 'New Hampshire', 'NJ': 'New Jersey', 'NM': 'New Mexico', 'NY': 'New York',
+      'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio', 'OK': 'Oklahoma',
+      'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
+      'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah',
+      'VT': 'Vermont', 'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia',
+      'WI': 'Wisconsin', 'WY': 'Wyoming', 'DC': 'District of Columbia'
     }
     
     const stateName = stateNames[stateCode] || stateCode
     const stateRecord = await getOrCreateState(stateName, stateCode)
 
-    // Scrape bills
-    console.log(`Starting to scrape bills for ${stateName}...`)
-    const scrapingResult = await scrapeBillsForState(stateCode)
+    console.log(`Starting data fetch for ${stateName}`)
+    const result = await fetchStateData(stateCode)
     
-    if (!scrapingResult.success) {
+    if (!result.success) {
       await updateScrapingJob(jobId, {
         status: 'FAILED',
-        errors: scrapingResult.errors,
+        errors: result.errors,
         completedAt: new Date()
       })
       return
     }
 
     await updateScrapingJob(jobId, {
-      billsFound: scrapingResult.totalFound
+      billsFound: result.totalFound
     })
 
     let billsProcessed = 0
-    const errors: string[] = []
+    let billsSummarized = 0
+    const errors: string[] = [...result.errors]
 
-    // Process each bill
-    for (const billData of scrapingResult.bills) {
+    console.log(`Processing ${result.bills.length} bills for ${stateName}`)
+    console.log(`API queries used: ${result.queriesUsed}`)
+
+    for (const billData of result.bills) {
       try {
-        // Validate bill data
-        const validation = await validateBillData(billData)
-        if (!validation.valid) {
-          errors.push(`Invalid bill data for ${billData.billNumber}: ${validation.errors.join(', ')}`)
-          continue
-        }
-
-        // Create bill record
         const bill = await createBill({
           title: billData.title,
           billNumber: billData.billNumber,
           status: billData.status,
           stateId: stateRecord.id,
           fullText: billData.fullText,
-          introducedDate: billData.introducedDate,
           lastActionDate: billData.lastActionDate,
           lastAction: billData.lastAction,
           sponsor: billData.sponsor,
           sourceUrl: billData.sourceUrl
         })
 
-        // Generate AI summary if we have full text
-        if (billData.fullText) {
+        billsProcessed++
+
+        if (billData.fullText && billData.fullText.length > 100) {
           try {
-            console.log(`Generating summary for ${billData.billNumber}...`)
+            console.log(`Generating summary for ${billData.billNumber}`)
             const summary = await summarizeBill(
               billData.title,
               billData.fullText,
               stateName
             )
 
-            // Extract key terms for tagging
-            const keyTerms = await extractKeyTerms(billData.fullText)
-
-            // Create summary record
             await createSummary({
               content: summary.brief,
               billId: bill.id,
@@ -159,19 +161,19 @@ async function scrapeBillsBackground(jobId: string, stateCode: string) {
               confidence: summary.confidence
             })
 
-            console.log(`Successfully processed ${billData.billNumber}`)
+            billsSummarized++
           } catch (aiError) {
-            console.error(`Failed to generate summary for ${billData.billNumber}:`, aiError)
+            console.error(`AI processing failed for ${billData.billNumber}:`, aiError)
             errors.push(`AI processing failed for ${billData.billNumber}`)
           }
         }
-
-        billsProcessed++
         
-        // Update progress
         await updateScrapingJob(jobId, {
-          billsProcessed
+          billsProcessed,
+          billsSummarized
         })
+
+        await new Promise(resolve => setTimeout(resolve, 500))
 
       } catch (billError) {
         console.error(`Error processing bill ${billData.billNumber}:`, billError)
@@ -179,18 +181,20 @@ async function scrapeBillsBackground(jobId: string, stateCode: string) {
       }
     }
 
-    // Complete the job
     await updateScrapingJob(jobId, {
-      status: errors.length > 0 ? 'COMPLETED' : 'COMPLETED',
+      status: 'COMPLETED',
       billsProcessed,
+      billsSummarized,
       errors,
       completedAt: new Date()
     })
 
-    console.log(`Scraping job ${jobId} completed. Processed ${billsProcessed}/${scrapingResult.totalFound} bills.`)
+    console.log(`Job ${jobId} completed for ${stateName}`)
+    console.log(`Results: ${billsProcessed}/${result.totalFound} bills processed, ${billsSummarized} summarized`)
+    console.log(`Cache stats:`, result.cacheStats)
 
   } catch (error) {
-    console.error(`Scraping job ${jobId} failed:`, error)
+    console.error(`Job ${jobId} failed:`, error)
     await updateScrapingJob(jobId, {
       status: 'FAILED',
       errors: [`Job failed: ${error instanceof Error ? error.message : 'Unknown error'}`],

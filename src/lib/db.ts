@@ -105,6 +105,7 @@ export async function updateScrapingJob(
     status?: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
     billsFound?: number
     billsProcessed?: number
+    billsSummarized?: number
     errors?: string[]
     startedAt?: Date
     completedAt?: Date
@@ -124,20 +125,34 @@ export async function getRecentScrapingJobs(limit = 10) {
 }
 
 export async function getBillStats() {
-  const [totalBills, byState, byStatus] = await Promise.all([
+  const [totalBills, byStateRaw, byStatus] = await Promise.all([
     prisma.bill.count(),
     prisma.bill.groupBy({
       by: ['stateId'],
-      _count: true,
-      include: {
-        state: true
-      }
+      _count: true
     }),
     prisma.bill.groupBy({
       by: ['status'],
       _count: true
     })
   ])
+
+  // Get state information for the grouped results
+  const stateIds = byStateRaw.map(item => item.stateId)
+  const states = await prisma.state.findMany({
+    where: {
+      id: {
+        in: stateIds
+      }
+    }
+  })
+
+  // Combine the groupBy results with state information
+  const byState = byStateRaw.map(item => ({
+    stateId: item.stateId,
+    _count: item._count,
+    state: states.find(state => state.id === item.stateId)
+  }))
 
   return {
     totalBills,
