@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PolicyByte
 
-## Getting Started
+**Bite-sized summaries of legislation across America.**
 
-First, run the development server:
+PolicyByte transforms complex state legislation into clear, accessible summaries using AI. Navigate an interactive map of the United States to discover current bills, policy changes, and their potential impact on citizens, businesses, and communities.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## What It Does
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Interactive Map**: Click any state to explore current legislation
+- **AI Summaries**: Complex bills broken down into 2-3 sentence summaries
+- **Smart Categorization**: Bills automatically tagged by topic (Education, Healthcare, Environment, etc.)
+- **Real-time Updates**: Fresh legislative data scraped from state websites
+- **Impact Analysis**: Understand who bills affect and how
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Why PolicyByte?
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Staying informed about state legislation is crucial but challenging. Bills are often hundreds of pages long, written in legal language, and scattered across different state websites. PolicyByte solves this by:
 
-## Learn More
+- Automatically finding and tracking new bills
+- Using AI to create plain-English summaries
+- Organizing everything in one searchable, visual interface
+- Highlighting the practical impact on everyday life
 
-To learn more about Next.js, take a look at the following resources:
+## How It Works
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. **Scraping**: Automated collection of bills from state legislative websites
+2. **AI Analysis**: OpenAI processes full bill text to generate summaries and categorizations
+3. **Visualization**: Interactive map displays current legislative activity by state
+4. **Updates**: Regular monitoring ensures fresh, relevant content
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Currently Supported States
 
-## Deploy on Vercel
+California, Texas, New York, Florida (with more states being added regularly)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Tech Stack
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Built with modern web technologies for reliability and performance:
+
+- **Frontend**: Next.js 15, TypeScript, Tailwind CSS
+- **Backend**: Node.js API routes, PostgreSQL database
+- **AI**: OpenAI GPT-4 for intelligent summarization
+- **Visualization**: D3.js for interactive mapping
+- **Infrastructure**: Docker containerization for scalable deployment
+
+## Contributing
+
+Found a bug or have a suggestion? Open an issue or submit a pull request. We're always looking to improve the accuracy and coverage of legislative tracking.
+
+## Contact
+
+Questions about PolicyByte? Reach out at [your-email] or follow the project updates.
+
+---
+
+*Making democracy more accessible, one bill at a time.*
