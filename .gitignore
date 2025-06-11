@@ -53,4 +53,4 @@ scraped-bills/
 
 # AI API keys and sensitive config
 config/secrets.json
-api-keys.json
+api-keys.jsonpackage-lock.json
