@@ -57,8 +57,24 @@ export async function createBill(data: {
   sponsor?: string
   sourceUrl?: string
 }) {
-  return prisma.bill.create({
-    data: {
+  return prisma.bill.upsert({
+    where: {
+      stateId_billNumber: {
+        stateId: data.stateId,
+        billNumber: data.billNumber
+      }
+    },
+    update: {
+      title: data.title,
+      status: data.status,
+      fullText: data.fullText,
+      lastActionDate: data.lastActionDate,
+      lastAction: data.lastAction,
+      sponsor: data.sponsor,
+      sourceUrl: data.sourceUrl,
+      scrapedAt: new Date()
+    },
+    create: {
       ...data,
       scrapedAt: new Date()
     }

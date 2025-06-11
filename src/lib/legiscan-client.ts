@@ -82,7 +82,12 @@ export async function fetchStateData(stateCode: string): Promise<{
               try {
                 const decodedDoc = atob(textData.doc)
                 if (decodedDoc.length > 500) {
+                  // Clean the decoded text
                   fullText = decodedDoc
+                    .replace(/\0/g, '') // Remove null bytes
+                    .replace(/<[^>]*>/g, ' ') // Remove HTML tags
+                    .replace(/\s+/g, ' ') // Normalize whitespace
+                    .trim()
                   console.log(`Decoded main doc for ${billDetail.bill_number} (${fullText.length} chars, ${textData.mime})`)
                 }
               } catch (decodeError) {
@@ -93,7 +98,12 @@ export async function fetchStateData(stateCode: string): Promise<{
               try {
                 const decodedAltDoc = atob(textData.alt_doc)
                 if (decodedAltDoc.length > 500) {
+                  // Clean the decoded text
                   fullText = decodedAltDoc
+                    .replace(/\0/g, '') // Remove null bytes
+                    .replace(/<[^>]*>/g, ' ') // Remove HTML tags
+                    .replace(/\s+/g, ' ') // Normalize whitespace
+                    .trim()
                   console.log(`Decoded alt doc for ${billDetail.bill_number} (${fullText.length} chars, ${textData.alt_mime})`)
                 }
               } catch (decodeError) {
@@ -117,13 +127,13 @@ export async function fetchStateData(stateCode: string): Promise<{
                              billDetail.sponsors?.[0]?.name
 
         bills.push({
-          title: billDetail.title,
+          title: billDetail.title?.replace(/\0/g, '') || 'Untitled Bill', // Remove null bytes
           billNumber: billDetail.bill_number,
           status: getStatusText(billDetail.status),
           lastActionDate: billDetail.last_action_date ? new Date(billDetail.last_action_date) : undefined,
-          lastAction: billDetail.last_action,
-          sponsor: primarySponsor,
-          fullText,
+          lastAction: billDetail.last_action?.replace(/\0/g, '') || undefined, // Remove null bytes
+          sponsor: primarySponsor?.replace(/\0/g, '') || undefined, // Remove null bytes
+          fullText: fullText ? fullText.replace(/\0/g, '').trim() : undefined, // Remove null bytes and trim
           sourceUrl: billDetail.url,
           legiScanId: billDetail.bill_id,
           changeHash: billDetail.change_hash

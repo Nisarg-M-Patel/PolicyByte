@@ -1,8 +1,7 @@
-import OpenAI from 'openai'
+// src/lib/ai.ts
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 
 export interface BillSummary {
   brief: string
@@ -13,13 +12,36 @@ export interface BillSummary {
   confidence: number
 }
 
+function cleanJsonResponse(content: string): string {
+  let cleanedContent = content.trim()
+  if (cleanedContent.startsWith('```json')) {
+    cleanedContent = cleanedContent.replace(/^```json\s*/, '').replace(/\s*```$/, '')
+  } else if (cleanedContent.startsWith('```')) {
+    cleanedContent = cleanedContent.replace(/^```\s*/, '').replace(/\s*```$/, '')
+  }
+  return cleanedContent
+}
+
 export async function summarizeBill(
   title: string,
   fullText: string,
   state: string
 ): Promise<BillSummary> {
-  const prompt = `
-You are an expert policy analyst. Analyze this ${state} state legislation and provide a comprehensive summary.
+  const startTime = Date.now()
+  console.log(`Summarizing bill: ${title} (${fullText.length} characters)`)
+  
+  try {
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: {
+        temperature: 0.3,
+        topP: 0.8,
+        topK: 40,
+        maxOutputTokens: 1000,
+      }
+    })
+
+    const prompt = `You are an expert policy analyst. Analyze this ${state} state legislation and provide a comprehensive summary.
 
 BILL TITLE: ${title}
 
@@ -33,7 +55,7 @@ Please provide a JSON response with the following structure:
   "impact": "Who this affects and how (citizens, businesses, environment, etc.)",
   "category": "One of: Education, Healthcare, Environment, Economy, Transportation, Criminal Justice, Technology, Housing, Agriculture, Other",
   "priority": "LOW, MEDIUM, HIGH, or CRITICAL based on scope of impact",
-  "confidence": 0.85 // Your confidence in the analysis (0-1)
+  "confidence": 0.85
 }
 
 Focus on:
@@ -43,42 +65,31 @@ Focus on:
 - Timeline if mentioned
 - Funding/budget implications if any
 
-Avoid political bias and stick to factual analysis.
-`
-
-  try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a helpful policy analyst who creates clear, unbiased summaries of legislation. Always respond with valid JSON.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 1000
-    })
-
-    const content = response.choices[0]?.message?.content
+Avoid political bias and stick to factual analysis.`
+    
+    const result = await model.generateContent(prompt)
+    const content = result.response.text()
+    
     if (!content) {
-      throw new Error('No response from OpenAI')
+      throw new Error('No response from Gemini')
     }
 
-    // Parse the JSON response
-    const summary = JSON.parse(content) as BillSummary
+    const cleanedContent = cleanJsonResponse(content)
+    const summary = JSON.parse(cleanedContent) as BillSummary
     
     // Validate the response structure
     if (!summary.brief || !summary.keyPoints || !summary.impact) {
-      throw new Error('Invalid summary structure from AI')
+      throw new Error('Invalid summary structure from Gemini')
     }
 
+    const elapsed = Date.now() - startTime
+    console.log(`✓ Gemini summary completed in ${elapsed}ms`)
+    
     return summary
+    
   } catch (error) {
-    console.error('Error summarizing bill:', error)
+    const elapsed = Date.now() - startTime
+    console.error(`✗ Gemini summary failed after ${elapsed}ms:`, error)
     
     // Fallback summary
     return {
@@ -93,8 +104,7 @@ Avoid political bias and stick to factual analysis.
 }
 
 export async function categorizeBills(bills: Array<{ title: string; summary?: string }>) {
-  const prompt = `
-Analyze these bills and categorize them by topic. Return a JSON object where keys are categories and values are arrays of bill indices.
+  const prompt = `Analyze these bills and categorize them by topic. Return a JSON object where keys are categories and values are arrays of bill indices.
 
 Bills:
 ${bills.map((bill, i) => `${i}: ${bill.title} - ${bill.summary || 'No summary'}`).join('\n')}
@@ -110,28 +120,22 @@ Example response:
 `
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'You categorize legislation by topic. Always respond with valid JSON.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.1,
-      max_tokens: 500
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 500,
+      }
     })
 
-    const content = response.choices[0]?.message?.content
+    const result = await model.generateContent(prompt)
+    const content = result.response.text()
+    
     if (!content) {
       return {}
     }
 
-    return JSON.parse(content)
+    return JSON.parse(cleanJsonResponse(content))
   } catch (error) {
     console.error('Error categorizing bills:', error)
     return {}
@@ -139,8 +143,7 @@ Example response:
 }
 
 export async function extractKeyTerms(text: string): Promise<string[]> {
-  const prompt = `
-Extract 5-10 key terms from this legislative text that would be useful for search and categorization.
+  const prompt = `Extract 5-10 key terms from this legislative text that would be useful for search and categorization.
 Focus on:
 - Policy areas (education, healthcare, etc.)
 - Specific programs or entities mentioned
@@ -150,32 +153,25 @@ Focus on:
 
 Text: ${text.slice(0, 2000)}...
 
-Return as a JSON array of strings.
-`
+Return as a JSON array of strings.`
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'Extract key terms from legislative text. Respond with a JSON array of strings.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.2,
-      max_tokens: 200
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 200,
+      }
     })
 
-    const content = response.choices[0]?.message?.content
+    const result = await model.generateContent(prompt)
+    const content = result.response.text()
+    
     if (!content) {
       return []
     }
 
-    return JSON.parse(content)
+    return JSON.parse(cleanJsonResponse(content))
   } catch (error) {
     console.error('Error extracting key terms:', error)
     return []
